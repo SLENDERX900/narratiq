@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
 import { Auth } from '@supabase/auth-ui-react'
-import { ThemeSupa } from '@supabase/auth-ui-shared'
 import { supabase } from '../lib/supabase.js'
 import DolphinLogo from '../components/DolphinLogo.jsx'
 
@@ -86,16 +85,10 @@ export default function AuthPage() {
         <Auth
           supabaseClient={supabase}
           appearance={{
-            theme: ThemeSupa,
+            theme: 'default',
             variables: {
               default: {
                 colors: { brand: '#2563EB', brandAccent: '#1D4ED8' },
-                fonts: {
-                  bodyFontFamily: `'DM Sans', sans-serif`,
-                  buttonFontFamily: `'DM Sans', sans-serif`,
-                  inputFontFamily: `'DM Sans', sans-serif`,
-                },
-                radii: { borderRadiusButton: '10px', inputBorderRadius: '10px' },
               },
             },
           }}
