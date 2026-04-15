@@ -46,5 +46,17 @@ app.listen(PORT, async () => {
     console.log('[Cron] Hourly trigger fired')
     runPipeline()
   })
-  await catchUpIfMissed()
+  try {
+    await catchUpIfMissed()
+  } catch (err) {
+    console.error('[Startup] catchUpIfMissed failed:', err.message)
+  }
+})
+
+// Error handling
+process.on('unhandledRejection', (err) => {
+  console.error('Unhandled rejection:', err)
+})
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught exception:', err)
 })
