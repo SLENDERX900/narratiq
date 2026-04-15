@@ -1,7 +1,8 @@
 [build]
-builder = "nixpacks"
+builder = "heroku/buildpacks:20"
+buildCommand = "cd server && npm install"
 
 [deploy]
-startCommand = "node index.js"
+startCommand = "cd server && node index.js"
 restartPolicyType = "on-failure"
 restartPolicyMaxRetries = 3
