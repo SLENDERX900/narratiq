@@ -18,7 +18,7 @@ app.get('/health', (req, res) => {
 })
 
 app.get('/api/watchlist', (req, res) => {
-  res.json({ items: [] })
+  res.json([])
 })
 
 app.post('/api/watchlist', (req, res) => {
@@ -27,11 +27,11 @@ app.post('/api/watchlist', (req, res) => {
 
 // Insights routes
 app.get('/api/insights', (req, res) => {
-  res.json({ insights: [] })
+  res.json([])
 })
 
 app.get('/api/insights/history', (req, res) => {
-  res.json({ history: [] })
+  res.json([])
 })
 
 // Forecast routes
@@ -40,11 +40,11 @@ app.get('/api/forecast/:ticker', (req, res) => {
 })
 
 app.get('/api/forecast/accuracy', (req, res) => {
-  res.json({ accuracy: {} })
+  res.json({})
 })
 
 app.get('/api/forecast/trust', (req, res) => {
-  res.json({ trust: {} })
+  res.json({})
 })
 
 app.listen(PORT, '0.0.0.0', () => {
