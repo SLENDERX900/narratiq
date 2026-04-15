@@ -10,10 +10,18 @@ import forecastRouter  from './routes/forecast.js'
 const app = express()
 const PORT = process.env.PORT || 3001
 
-app.use(cors({ 
-  origin: ['https://narratiq-one.vercel.app', 'http://localhost:5173', process.env.CLIENT_URL].filter(Boolean),
-  credentials: true
-}))
+// CORS - allow Vercel frontend
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', 'https://narratiq-one.vercel.app')
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization')
+  res.header('Access-Control-Allow-Credentials', 'true')
+  
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200)
+  }
+  next()
+})
 app.use(express.json())
 
 app.use('/api/insights',  insightsRouter)
