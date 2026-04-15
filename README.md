@@ -2,7 +2,7 @@
 
 **A living experiment in AI-powered market analysis.**
 
-[![Try it Live](https://img.shields.io/badge/Try%20it%20Live-vercel-black?style=for-the-badge&logo=vercel)](https://narratiq.vercel.app)
+[![Try it Live](https://img.shields.io/badge/Try%20it%20Live-vercel-black?style=for-the-badge&logo=vercel)](https://narratiq-omega.vercel.app)
 
 > **Note:** This app requires a backend running on Railway to function fully. The live demo shows the UI, but you'll need to deploy your own backend instance for full functionality. See [Setup Guide](#setup-guide) below.
 

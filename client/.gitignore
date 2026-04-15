@@ -44,3 +44,5 @@ coverage/
 *.tar.gz
 .cache/
 .temp/
+
+.vercel
