@@ -33,16 +33,10 @@ app.get('/test-cors', (req, res) => {
   res.json({ message: 'CORS is working', origin: req.headers.origin })
 })
 
-// Temporarily disable routes to test
-// app.use('/api/insights',  insightsRouter)
-// app.use('/api/watchlist', watchlistRouter)
-// app.use('/api/forecast',  forecastRouter)
-
-// Simple test routes
-app.get('/api/insights', (req, res) => res.json({ message: 'insights placeholder' }))
-app.get('/api/watchlist', (req, res) => res.json({ message: 'watchlist placeholder' }))
-app.post('/api/watchlist', (req, res) => res.json({ message: 'watchlist add placeholder' }))
-app.get('/api/forecast', (req, res) => res.json({ message: 'forecast placeholder' }))
+// Real routes with AI agents
+app.use('/api/insights',  insightsRouter)
+app.use('/api/watchlist', watchlistRouter)
+app.use('/api/forecast',  forecastRouter)
 
 app.get('/health', (req, res) => res.json({ status: 'ok', time: new Date().toISOString(), cors: 'enabled' }))
 
@@ -51,7 +45,7 @@ app.post('/api/pipeline/run', async (req, res) => {
   await runPipeline()
 })
 
-app.listen(PORT, async () => {
+app.listen(PORT, '0.0.0.0', async () => {
   console.log(`\nNarratiQ server running on port ${PORT}`)
   cron.schedule('0 * * * *', () => {
     console.log('[Cron] Hourly trigger fired')
