@@ -1,6 +1,5 @@
 import 'dotenv/config'
 import express from 'express'
-import cors from 'cors'
 import cron from 'node-cron'
 import { runPipeline, catchUpIfMissed } from './lib/pipelineRunner.js'
 import insightsRouter  from './routes/insights.js'
@@ -10,9 +9,9 @@ import forecastRouter  from './routes/forecast.js'
 const app = express()
 const PORT = process.env.PORT || 3001
 
-// CORS - allow Vercel frontend
+// CORS - MUST be before express.json()
 app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', 'https://narratiq-one.vercel.app')
+  res.header('Access-Control-Allow-Origin', '*')
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
   res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization')
   res.header('Access-Control-Allow-Credentials', 'true')
@@ -22,13 +21,19 @@ app.use((req, res, next) => {
   }
   next()
 })
+
 app.use(express.json())
+
+// Test endpoint
+app.get('/test-cors', (req, res) => {
+  res.json({ message: 'CORS is working', origin: req.headers.origin })
+})
 
 app.use('/api/insights',  insightsRouter)
 app.use('/api/watchlist', watchlistRouter)
 app.use('/api/forecast',  forecastRouter)
 
-app.get('/health', (req, res) => res.json({ status: 'ok', time: new Date().toISOString() }))
+app.get('/health', (req, res) => res.json({ status: 'ok', time: new Date().toISOString(), cors: 'enabled' }))
 
 app.post('/api/pipeline/run', async (req, res) => {
   res.json({ message: 'Pipeline triggered' })
