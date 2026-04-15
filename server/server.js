@@ -1,7 +1,7 @@
 import express from 'express'
 
 const app = express()
-const PORT = process.env.PORT || 3001
+const PORT = process.env.PORT || 5370
 
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*')
