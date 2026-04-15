@@ -41,7 +41,13 @@ app.use('/api/forecast',  forecastRouter)
 app.get('/health', (req, res) => res.json({ status: 'ok', time: new Date().toISOString(), cors: 'enabled' }))
 
 app.post('/api/pipeline/run', async (req, res) => {
-  res.json({ message: 'Pipeline triggered' })
+  res.json({ message: 'Pipeline triggered via POST' })
+  await runPipeline()
+})
+
+// GET version for easy browser trigger
+app.get('/api/pipeline/trigger', async (req, res) => {
+  res.json({ message: 'Pipeline triggered via GET - check Runtime Logs' })
   await runPipeline()
 })
 
