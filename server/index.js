@@ -33,9 +33,16 @@ app.get('/test-cors', (req, res) => {
   res.json({ message: 'CORS is working', origin: req.headers.origin })
 })
 
-app.use('/api/insights',  insightsRouter)
-app.use('/api/watchlist', watchlistRouter)
-app.use('/api/forecast',  forecastRouter)
+// Temporarily disable routes to test
+// app.use('/api/insights',  insightsRouter)
+// app.use('/api/watchlist', watchlistRouter)
+// app.use('/api/forecast',  forecastRouter)
+
+// Simple test routes
+app.get('/api/insights', (req, res) => res.json({ message: 'insights placeholder' }))
+app.get('/api/watchlist', (req, res) => res.json({ message: 'watchlist placeholder' }))
+app.post('/api/watchlist', (req, res) => res.json({ message: 'watchlist add placeholder' }))
+app.get('/api/forecast', (req, res) => res.json({ message: 'forecast placeholder' }))
 
 app.get('/health', (req, res) => res.json({ status: 'ok', time: new Date().toISOString(), cors: 'enabled' }))
 
