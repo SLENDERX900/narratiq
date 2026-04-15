@@ -2,7 +2,7 @@
 
 **A living experiment in AI-powered market analysis.**
 
-[![Try it Live](https://img.shields.io/badge/Try%20it%20Live-netlify-blue?style=for-the-badge&logo=netlify)](https://narratiq.netlify.app)
+[![Try it Live](https://img.shields.io/badge/Try%20it%20Live-vercel-black?style=for-the-badge&logo=vercel)](https://narratiq.vercel.app)
 
 > **Note:** This app requires a backend running on Railway to function fully. The live demo shows the UI, but you'll need to deploy your own backend instance for full functionality. See [Setup Guide](#setup-guide) below.
 
@@ -53,7 +53,7 @@ GitHub → Railway (Express + node-cron)  ←→  Supabase (Postgres + Auth)
                 ↓                                      ↑
         7-agent pipeline                     stock_insights table
                                                        ↓
-                              Netlify (React/Vite) ← polls every 30s
+                              Vercel (React/Vite) ← polls every 30s
 ```
 
 ### The Agent Pipeline (runs hourly on Railway)
@@ -78,7 +78,7 @@ Every step writes checkpoints. If any provider fails, the Health Monitor rotates
 
 I chose these tools based on a few principles:
 
-- **Serverless-first for the frontend** — I want the UI to be fast globally without managing CDN configs. Netlify handles this automatically.
+- **Serverless-first for the frontend** — I want the UI to be fast globally without managing CDN configs. Vercel handles this automatically.
 - **Always-on backend for cheap** — Railway's free tier keeps a small Express server running 24/7, which is perfect for the cron-scheduled agent pipeline. No VPS management, no sleep/wakeup complexity.
 - **Postgres as the system backbone** — Supabase gives me auth, a real database, and realtime subscriptions in one service. The agents write to it, the frontend reads from it — simple.
 - **Multiple LLM providers with fallbacks** — I don't trust any single provider. If Cerebras is down, Groq takes over. If both fail, Gemini Flash catches it. This redundancy is essential for 24/7 operation without human intervention.
@@ -118,9 +118,9 @@ narratiq/
 │       ├── insights.js         ← GET /api/insights/:ticker
 │       ├── watchlist.js        ← GET/POST/DELETE /api/watchlist
 │       └── forecast.js         ← GET /api/forecast/:ticker
-└── client/                      ← React/Vite frontend (deploy to Netlify)
+└── client/                      ← React/Vite frontend (deploy to Vercel)
     ├── .env.example             ← Copy to .env and fill in Supabase keys
-    ├── netlify.toml             ← Netlify deployment config
+    ├── vercel.json              ← Vercel deployment config
     └── src/
         ├── lib/supabase.js      ← Supabase anon client
         ├── hooks/
@@ -196,19 +196,17 @@ curl -X POST http://localhost:3001/api/pipeline/run
 
 Your backend URL will be something like `https://narratiq-server.up.railway.app`
 
-### Step 5 — Deploy to Netlify (frontend)
+### Step 5 — Deploy to Vercel (frontend)
 
-1. Go to [netlify.com](https://netlify.com) → Add new site → Import from GitHub
-2. Select the `client/` folder as the base directory
-3. Build command: `npm run build`
-4. Publish directory: `dist`
-5. Add environment variables in **Site settings → Environment variables**:
+1. Go to [vercel.com](https://vercel.com) → New Project → Import from GitHub
+2. Select the `client/` folder as the root directory
+3. Add environment variables:
    - `VITE_SUPABASE_URL` → your Supabase project URL
    - `VITE_SUPABASE_ANON_KEY` → your Supabase anon key
    - `VITE_API_URL` → your Railway backend URL (from Step 4)
-6. Deploy — Netlify auto-deploys on every `git push`
+4. Deploy — Vercel auto-deploys on every `git push`
 
-Your frontend URL will be something like `https://narratiq-xyz123.netlify.app`
+Your frontend URL will be something like `https://narratiq-xyz123.vercel.app`
 
 ---
 
