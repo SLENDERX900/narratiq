@@ -4,6 +4,29 @@ import { supabase } from '../lib/supabase.js'
 import DolphinLogo from '../components/DolphinLogo.jsx'
 
 export default function AuthPage() {
+  // Debug: Check if env vars are loaded
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+  const hasKey = !!import.meta.env.VITE_SUPABASE_ANON_KEY
+  
+  if (!supabaseUrl || !hasKey) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px', background: '#f8fafc' }}>
+        <DolphinLogo size={48} />
+        <h2 style={{ marginTop: '20px', fontSize: '18px', color: '#ef4444' }}>Configuration Error</h2>
+        <p style={{ marginTop: '12px', color: '#64748b', textAlign: 'center' }}>
+          Supabase environment variables not found.
+        </p>
+        <div style={{ marginTop: '20px', padding: '16px', background: '#f1f5f9', borderRadius: '8px', fontSize: '13px', fontFamily: 'monospace' }}>
+          VITE_SUPABASE_URL: {supabaseUrl || 'NOT SET'}<br/>
+          VITE_SUPABASE_ANON_KEY: {hasKey ? 'SET (hidden)' : 'NOT SET'}
+        </div>
+        <p style={{ marginTop: '16px', fontSize: '12px', color: '#94a3b8' }}>
+          Please check your Vercel environment variables and redeploy.
+        </p>
+      </div>
+    )
+  }
+
   return (
     <div style={{
       minHeight: '100vh', display: 'flex', alignItems: 'center',
