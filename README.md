@@ -3,8 +3,11 @@
 **A living experiment in AI-powered market analysis.**
 
 [![Try it Live](https://img.shields.io/badge/Try%20it%20Live-vercel-black?style=for-the-badge&logo=vercel)](https://narratiq-one.vercel.app)
+[![Backend](https://img.shields.io/badge/Backend-Railway-0B0D0E?style=for-the-badge&logo=railway)](https://narratiq-production.up.railway.app/health)
 
-> **Note:** This app requires a backend running on Railway to function fully. The live demo shows the UI, but you'll need to deploy your own backend instance for full functionality. See [Setup Guide](#setup-guide) below.
+> **Live Demo:** [narratiq-one.vercel.app](https://narratiq-one.vercel.app) — Fully functional with AI-powered market analysis
+>
+> **Backend:** [narratiq-production.up.railway.app](https://narratiq-production.up.railway.app/health) — Express + 7-agent pipeline running 24/7
 
 NarratiQ is my attempt to solve a problem that's bothered me for years: most financial tools show you *what* happened, but rarely help you understand *why* it happened and *what might come next*. I built this to explore whether a team of specialized AI agents, working together with a unified memory, could generate insights that feel closer to how an experienced trader thinks — connecting price action, news sentiment, social buzz, and macro context into a coherent narrative.
 
@@ -183,18 +186,31 @@ npm run dev                 # Starts on port 5173
 
 To trigger the pipeline manually without waiting for the hourly cron:
 ```bash
+# Local development
 curl -X POST http://localhost:3001/api/pipeline/run
+
+# Production (via browser)
+# Visit: https://YOUR_BACKEND_URL/api/pipeline/trigger
 ```
+
+**Note:** The pipeline runs automatically every hour (at :00). Initial data population requires a manual trigger or waiting for the first hourly run.
 
 ### Step 4 — Deploy to Railway (backend, runs 24/7)
 
 1. Push your code to a GitHub repository
 2. Go to [railway.app](https://railway.app) → New Project → Deploy from GitHub repo
 3. Select the `server/` folder as the root directory
-4. Add all environment variables from `.env.example` in the Railway dashboard
-5. Railway will auto-deploy on every `git push`
+4. **Settings → Start Command:** Set to `node index.js`
+5. **Settings → Networking → Port:** Set to `3001` (or let Railway auto-detect)
+6. Add all environment variables from `.env.example` in the Railway dashboard
+7. Railway will auto-deploy on every `git push`
 
-Your backend URL will be something like `https://narratiq-server.up.railway.app`
+**Important Configuration:**
+- **Start Command:** `node index.js` (runs the full AI agent pipeline)
+- **Port:** Uses `process.env.PORT` with fallback to `3001`
+- **CORS:** Configured to allow `narratiq-one.vercel.app` and `localhost:5173`
+
+Your backend URL will be something like `https://narratiq-production.up.railway.app`
 
 ### Step 5 — Deploy to Vercel (frontend)
 
@@ -203,10 +219,64 @@ Your backend URL will be something like `https://narratiq-server.up.railway.app`
 3. Add environment variables:
    - `VITE_SUPABASE_URL` → your Supabase project URL
    - `VITE_SUPABASE_ANON_KEY` → your Supabase anon key
-   - `VITE_API_URL` → your Railway backend URL (from Step 4)
+   - `VITE_API_URL` → your Railway backend URL (e.g., `https://narratiq-production.up.railway.app`)
 4. Deploy — Vercel auto-deploys on every `git push`
 
-Your frontend URL will be something like `https://narratiq-xyz123.vercel.app`
+**Framework Preset:** Vite (auto-detected)
+
+Your frontend URL will be something like `https://narratiq-one.vercel.app`
+
+---
+
+## Troubleshooting
+
+### Railway Backend Shows "502 Bad Gateway"
+
+**Cause:** The server isn't starting properly or the port isn't configured correctly.
+
+**Fix:**
+1. Check Railway Settings → **Start Command** is set to `node index.js`
+2. Check Railway Settings → **Networking → Port** matches what your code expects
+3. Check Runtime Logs for "Cannot find module" errors - ensure `Procfile` and `package.json` both reference `index.js`
+
+### CORS Errors in Browser Console
+
+**Cause:** Frontend origin not allowed by backend.
+
+**Fix:**
+```javascript
+// In server/index.js - update allowed origins
+const allowedOrigins = [
+  'https://YOUR_VERCEL_URL.vercel.app', 
+  'http://localhost:5173'
+]
+```
+
+### Cards Show "Loading" Forever
+
+**Cause:** Database is empty - AI pipeline hasn't run yet.
+
+**Fix:** Trigger the pipeline manually:
+- Visit `https://YOUR_BACKEND_URL/api/pipeline/trigger`
+- Or wait for the hourly cron job (runs at :00 every hour)
+
+### "Test server running on port" Instead of "NarratiQ server"
+
+**Cause:** Railway is running `server.js` instead of `index.js`.
+
+**Fix:** Update `Procfile` and `package.json`:
+```
+web: node index.js
+```
+
+### Environment Variables Not Loading
+
+**Cause:** Variables set in Railway but not in correct format.
+
+**Fix:**
+- Don't wrap values in quotes
+- No spaces around `=`
+- Restart service after adding variables
 
 ---
 
