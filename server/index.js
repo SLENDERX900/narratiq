@@ -11,7 +11,11 @@ const PORT = process.env.PORT || 3001
 
 // CORS - MUST be before express.json()
 app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*')
+  const allowedOrigins = ['https://narratiq-one.vercel.app', 'https://narratiq-l7g3k59gw-stuarttgregory04-4577s-projects.vercel.app', 'http://localhost:5173']
+  const origin = req.headers.origin
+  if (allowedOrigins.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin)
+  }
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
   res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization')
   res.header('Access-Control-Allow-Credentials', 'true')
