@@ -120,7 +120,6 @@ narratiq/
 │       └── forecast.js         ← GET /api/forecast/:ticker
 └── client/                      ← React/Vite frontend (deploy to Vercel)
     ├── .env.example             ← Copy to .env and fill in Supabase keys
-    ├── vercel.json              ← Vercel deployment config
     └── src/
         ├── lib/supabase.js      ← Supabase anon client
         ├── hooks/
