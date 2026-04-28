@@ -51,6 +51,18 @@ app.get('/api/pipeline/trigger', async (req, res) => {
   await runPipeline()
 })
 
+// POST version for Railway cron (no auth required)
+app.post('/api/pipeline/cron', async (req, res) => {
+  console.log(`[Cron] Railway cron triggered at ${new Date().toISOString()}`)
+  try {
+    await runPipeline()
+    res.json({ message: 'Pipeline completed successfully' })
+  } catch (err) {
+    console.error('[Cron] Pipeline failed:', err)
+    res.status(500).json({ error: 'Pipeline failed', message: err.message })
+  }
+})
+
 app.listen(PORT, '0.0.0.0', async () => {
   console.log(`\nNarratiQ server running on port ${PORT}`)
   cron.schedule('0 * * * *', () => {
