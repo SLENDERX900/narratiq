@@ -1,8 +1,7 @@
 import { v4 as uuidv4 } from 'uuid'
 import { supabase } from '../config/supabase.js'
 import { runMarketAgent }       from '../agents/marketAgent.js'
-import { runNewsAgent }         from '../agents/newsAgent.js'
-import { runSocialAgent }       from '../agents/socialAgent.js'
+import { runSentimentAggregator } from '../agents/sentimentAggregator.js'
 import { runSentimentAgent }    from '../agents/sentimentAgent.js'
 import { runOrchestratorAgent } from '../agents/orchestratorAgent.js'
 import { runForecastAgent }     from '../agents/forecastAgent.js'
@@ -26,10 +25,9 @@ async function runTickerPipeline(ticker, runId, macro) {
   // (to capture post-market moves and overnight news).
   try {
     const market        = await runMarketAgent(ticker, runId)
-    const {headlines}   = await runNewsAgent(ticker, runId)
-    const social        = await runSocialAgent(ticker, runId)
-    const sentiment     = await runSentimentAgent(ticker, runId, headlines)
-    const fullState     = { ...market, headlines, social, ...sentiment }
+    const sentimentAgg  = await runSentimentAggregator(ticker, runId)
+    const sentiment     = await runSentimentAgent(ticker, runId, sentimentAgg.headlines)
+    const fullState     = { ...market, headlines: sentimentAgg.headlines, social: sentimentAgg.social, ...sentiment, sentiment_score: sentimentAgg.sentiment_score, main_hype_driver: sentimentAgg.main_hype_driver }
     await runOrchestratorAgent(ticker, runId, fullState)
 
     // Append session context to the latest insight

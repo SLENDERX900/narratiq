@@ -106,12 +106,14 @@ narratiq/
 │   │   └── supabase.js          ← Supabase service-role client
 │   ├── agents/
 │   │   ├── marketAgent.js       ← Price + OHLCV candles
-│   │   ├── newsAgent.js         ← Headlines last 24h
-│   │   ├── socialAgent.js       ← Sentiment + buzz score
+│   │   ├── sentimentAggregator.js ← News + Social data aggregation (Finnhub/StockTwits)
 │   │   ├── sentimentAgent.js   ← AI classification (8B)
 │   │   ├── orchestratorAgent.js ← Narrative synthesis (70B)
 │   │   ├── forecastAgent.js    ← ML prediction + accuracy tracking
-│   │   └── macroAgent.js       ← Macro regime detection
+│   │   ├── macroAgent.js       ← Macro regime detection
+│   │   ├── quantAuditor.js     ← Quantitative analysis (ATR/RVOL/momentum)
+│   │   ├── arbitratorAgent.js  ← EVR divergence engine
+│   │   └── performanceAuditor.js ← 24h prediction accuracy tracking
 │   ├── lib/
 │   │   ├── dataNormalizer.js   ← Maps all provider shapes → canonical schema
 │   │   ├── healthMonitor.js    ← Axios interceptor for 429/503 rotation

@@ -3,6 +3,8 @@
 -- Run this entire file in the Supabase SQL Editor
 -- ============================================================
 
+create extension if not exists vector;
+
 -- 1. USER WATCHLIST
 create table if not exists public.user_watchlist (
   id          uuid primary key default gen_random_uuid(),
@@ -13,6 +15,8 @@ create table if not exists public.user_watchlist (
 );
 
 alter table public.user_watchlist enable row level security;
+
+drop policy if exists "Users manage own watchlist" on public.user_watchlist;
 
 create policy "Users manage own watchlist"
   on public.user_watchlist
@@ -33,6 +37,8 @@ create table if not exists public.agent_run_log (
 );
 
 alter table public.agent_run_log enable row level security;
+
+drop policy if exists "Service role full access to run log" on public.agent_run_log;
 
 create policy "Service role full access to run log"
   on public.agent_run_log
@@ -58,6 +64,9 @@ create table if not exists public.stock_insights (
 );
 
 alter table public.stock_insights enable row level security;
+
+drop policy if exists "Anyone authenticated can read insights" on public.stock_insights;
+drop policy if exists "Service role can write insights" on public.stock_insights;
 
 create policy "Anyone authenticated can read insights"
   on public.stock_insights
@@ -112,6 +121,9 @@ create table if not exists public.stock_forecasts (
 
 alter table public.stock_forecasts enable row level security;
 
+drop policy if exists "Authenticated users can read forecasts" on public.stock_forecasts;
+drop policy if exists "Service role can write forecasts" on public.stock_forecasts;
+
 create policy "Authenticated users can read forecasts"
   on public.stock_forecasts for select
   using (auth.role() = 'authenticated');
@@ -149,6 +161,8 @@ create table if not exists public.source_reliability (
 );
 
 alter table public.source_reliability enable row level security;
+drop policy if exists "Auth users read reliability" on public.source_reliability;
+drop policy if exists "Service role write reliability" on public.source_reliability;
 create policy "Auth users read reliability" on public.source_reliability for select using (auth.role() = 'authenticated');
 create policy "Service role write reliability" on public.source_reliability for all using (true);
 
@@ -163,6 +177,8 @@ create table if not exists public.macro_signals (
 );
 
 alter table public.macro_signals enable row level security;
+drop policy if exists "Auth users read macro" on public.macro_signals;
+drop policy if exists "Service write macro" on public.macro_signals;
 create policy "Auth users read macro" on public.macro_signals for select using (auth.role() = 'authenticated');
 create policy "Service write macro" on public.macro_signals for all using (true);
 
@@ -172,3 +188,156 @@ alter table public.stock_insights
   add column if not exists implied_price    numeric,
   add column if not exists price_divergence numeric,  -- actual - implied (positive = price running ahead of sentiment)
   add column if not exists macro_regime     text;     -- 'risk-on' | 'risk-off' | 'neutral'
+
+-- ============================================================
+-- NARRATIQ 2.0 — EVR ARBITRAGE ENGINE CORE
+-- Master architecture: REVAMP_BLUEPRINT.md
+-- ============================================================
+
+create table if not exists public.assets (
+  id bigint generated always as identity primary key,
+  symbol text not null unique,
+  name text,
+  asset_type text not null default 'equity',
+  exchange text,
+  sector text,
+  industry text,
+  is_active boolean not null default true,
+  metadata jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.market_sessions (
+  id bigint generated always as identity primary key,
+  asset_id bigint not null references public.assets(id) on delete cascade,
+  session_date date not null default current_date,
+  signal_label text,
+  action text,
+  divergence_score numeric(10,4) not null,
+  narrative_sentiment numeric(10,4),
+  price_reality numeric(10,4),
+  quant_auditor_output jsonb not null default '{}'::jsonb,
+  sentiment_aggregator_output jsonb not null default '{}'::jsonb,
+  arbitrator_output jsonb not null default '{}'::jsonb,
+  open_price numeric(18,6),
+  high_price numeric(18,6),
+  low_price numeric(18,6),
+  close_price numeric(18,6),
+  volume bigint,
+  audited_at timestamptz,
+  actual_24h_change_pct numeric(10,4),
+  prediction_correct boolean,
+  metadata jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint market_sessions_asset_date_key unique (asset_id, session_date)
+);
+
+create table if not exists public.memory_logs (
+  id bigint generated always as identity primary key,
+  asset_id bigint references public.assets(id) on delete set null,
+  market_session_id bigint references public.market_sessions(id) on delete set null,
+  memory_type text not null,
+  title text,
+  content text not null,
+  summary text,
+  embedding vector(1536) not null,
+  importance_score numeric(6,3) not null default 0,
+  source text,
+  metadata jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.knowledge_graph (
+  id bigint generated always as identity primary key,
+  source_asset_id bigint references public.assets(id) on delete cascade,
+  related_asset_id bigint references public.assets(id) on delete cascade,
+  relation_type text not null,
+  weight numeric(8,4) not null default 1.0000,
+  evidence text,
+  metadata jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint knowledge_graph_no_self_ref check (
+    source_asset_id is null
+    or related_asset_id is null
+    or source_asset_id <> related_asset_id
+  )
+);
+
+create index if not exists idx_assets_symbol
+  on public.assets(symbol);
+
+create index if not exists idx_market_sessions_asset_id
+  on public.market_sessions(asset_id);
+
+create index if not exists idx_market_sessions_session_date
+  on public.market_sessions(session_date);
+
+create index if not exists idx_memory_logs_asset_id
+  on public.memory_logs(asset_id);
+
+create index if not exists idx_memory_logs_market_session_id
+  on public.memory_logs(market_session_id);
+
+create index if not exists idx_memory_logs_memory_type
+  on public.memory_logs(memory_type);
+
+create index if not exists idx_knowledge_graph_source_asset_id
+  on public.knowledge_graph(source_asset_id);
+
+create index if not exists idx_knowledge_graph_related_asset_id
+  on public.knowledge_graph(related_asset_id);
+
+create index if not exists idx_knowledge_graph_relation_type
+  on public.knowledge_graph(relation_type);
+
+create index if not exists idx_memory_logs_embedding
+  on public.memory_logs
+  using ivfflat (embedding vector_cosine_ops)
+  with (lists = 100);
+
+create or replace function public.match_memory_logs(
+  query_embedding vector(1536),
+  match_count integer default 5,
+  filter_asset_id bigint default null,
+  filter_memory_type text default null
+)
+returns table (
+  id bigint,
+  asset_id bigint,
+  market_session_id bigint,
+  memory_type text,
+  title text,
+  content text,
+  summary text,
+  importance_score numeric,
+  source text,
+  metadata jsonb,
+  created_at timestamptz,
+  similarity double precision
+)
+language sql
+stable
+as $$
+  select
+    ml.id,
+    ml.asset_id,
+    ml.market_session_id,
+    ml.memory_type,
+    ml.title,
+    ml.content,
+    ml.summary,
+    ml.importance_score,
+    ml.source,
+    ml.metadata,
+    ml.created_at,
+    1 - (ml.embedding <=> query_embedding) as similarity
+  from public.memory_logs ml
+  where
+    (filter_asset_id is null or ml.asset_id = filter_asset_id)
+    and (filter_memory_type is null or ml.memory_type = filter_memory_type)
+  order by ml.embedding <=> query_embedding
+  limit greatest(match_count, 1);
+$$;
