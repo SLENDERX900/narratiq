@@ -54,8 +54,8 @@ app.get('/api/pipeline/trigger', async (req, res) => {
 app.listen(PORT, '0.0.0.0', async () => {
   console.log(`\nNarratiQ server running on port ${PORT}`)
   cron.schedule('0 * * * *', () => {
-    console.log('[Cron] Hourly trigger fired')
-    runPipeline()
+    console.log(`[Cron] Hourly trigger fired at ${new Date().toISOString()}`)
+    runPipeline().catch(err => console.error('[Cron] Pipeline failed:', err))
   })
   try {
     await catchUpIfMissed()
