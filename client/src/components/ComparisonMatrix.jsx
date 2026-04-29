@@ -192,7 +192,11 @@ function TickerCard({ ticker, data, forecast, accuracy, trust, color }) {
         ))}
       </div>
 
-      {accuracy?.length > 2 && <AccuracyChart accuracyHistory={accuracy} />}
+      {accuracy?.length > 2 && (
+        <div style={{ padding:'16px', textAlign:'center', color:'var(--text-muted)' }}>
+          <small>Accuracy chart available for {accuracy.length} data points</small>
+        </div>
+      )}
 
       <div style={{ borderTop:'1px solid var(--border)', paddingTop:'8px' }}>
         <TrustMeter trustScores={trust} compact={false} />
