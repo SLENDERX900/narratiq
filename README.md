@@ -65,11 +65,13 @@ GitHub → Railway (Express + node-cron)  ←→  Supabase (Postgres + Auth)
 |------|-------|------|--------------|
 | 1 | **Macro Agent** | Establish market regime context | VIX, yield spreads, sector momentum |
 | 2 | **Market Agent** | Price action & technical structure | Finnhub, Twelve Data |
-| 3 | **News Agent** | Headline collection & initial filtering | Finnhub, Alpaca, Tiingo |
-| 4 | **Social Agent** | Retail sentiment & buzz detection | Marketaux, StockTwits |
-| 5 | **Sentiment Agent** | AI classification of news sentiment | Cerebras/Groq 8B |
-| 6 | **Orchestrator** | Narrative synthesis with confidence | Cerebras/Groq 70B |
-| 7 | **Forecast Agent** | Directional prediction with accuracy tracking | ML-based on historical patterns |
+| 3 | **Sentiment Aggregator** | News + Social data aggregation | Finnhub, StockTwits |
+| 4 | **Sentiment Agent** | AI classification of news sentiment | Cerebras/Groq 8B |
+| 5 | **Orchestrator** | Narrative synthesis with confidence | Cerebras/Groq 70B |
+| 6 | **Forecast Agent** | Directional prediction with accuracy tracking | ML-based on historical patterns |
+| 7 | **Quant Auditor** | Quantitative analysis (ATR/RVOL/momentum) | Historical price data |
+| 8 | **Arbitrator Agent** | EVR divergence engine | Price vs implied price analysis |
+| 9 | **Performance Auditor** | 24h prediction accuracy tracking | Historical forecast data |
 
 Every step writes checkpoints. If any provider fails, the Health Monitor rotates to alternatives and resumes from the last checkpoint — zero data loss.
 
@@ -117,12 +119,15 @@ narratiq/
 │   ├── lib/
 │   │   ├── dataNormalizer.js   ← Maps all provider shapes → canonical schema
 │   │   ├── healthMonitor.js    ← Axios interceptor for 429/503 rotation
-│   │   ├── pipelineRunner.js   ← Orchestrates all 7 steps per ticker
-│   │   └── marketSession.js    ← Market hours awareness
+│   │   ├── pipelineRunner.js   ← Orchestrates all 9 steps per ticker
+│   │   ├── marketSession.js    ← Market hours awareness
+│   │   ├── mlEngine.js         ← Machine learning forecast engine
+│   │   ├── trustEngine.js      ← Trust score calculation
+│   │   └── rules.md            ← Market session rules documentation
 │   └── routes/
-│       ├── insights.js         ← GET /api/insights/:ticker
+│       ├── insights.js         ← GET /api/insights?tickers=AAPL,TSLA
 │       ├── watchlist.js        ← GET/POST/DELETE /api/watchlist
-│       └── forecast.js         ← GET /api/forecast/:ticker
+│       └── forecast.js         ← GET /api/forecast/:ticker + accuracy/trust endpoints
 └── client/                      ← React/Vite frontend (deploy to Vercel)
     ├── .env.example             ← Copy to .env and fill in Supabase keys
     ├── vercel.json              ← Vercel framework config
@@ -132,13 +137,15 @@ narratiq/
         │   ├── useWatchlist.js  ← Watchlist CRUD + persistence
         │   └── useInsights.js   ← 30s polling hook
         ├── components/
-        │   ├── DolphinLogo.jsx
-        │   ├── SearchBar.jsx
-        │   ├── SentimentBadge.jsx
-        │   ├── SentimentChart.jsx
-        │   ├── InsightCard.jsx
-        │   ├── ExpandedCard.jsx
-        │   └── ComparisonMatrix.jsx
+        │   ├── DolphinLogo.jsx        ← Animated logo component
+        │   ├── SearchBar.jsx          ← Ticker search with autocomplete
+        │   ├── SentimentBadge.jsx     ← Bullish/Bearish sentiment indicator
+        │   ├── SentimentChart.jsx     ← Historical sentiment visualization
+        │   ├── InsightCard.jsx        ← Main insight display with expandable details
+        │   ├── ExpandedCard.jsx       ← Full detail view with charts
+        │   ├── ComparisonMatrix.jsx   ← Multi-ticker comparison view
+        │   ├── SessionBadge.jsx       ← Market session indicator
+        │   └── TrustMeter.jsx         ← Trust score visualization
         └── pages/
             ├── AuthPage.jsx     ← Supabase Auth UI
             └── Dashboard.jsx    ← Main dashboard
@@ -193,9 +200,10 @@ curl -X POST http://localhost:3001/api/pipeline/run
 
 # Production (via browser)
 # Visit: https://YOUR_BACKEND_URL/api/pipeline/trigger
+# Or POST to: https://YOUR_BACKEND_URL/api/pipeline/cron
 ```
 
-**Note:** The pipeline runs automatically every hour (at :00). Initial data population requires a manual trigger or waiting for the first hourly run.
+**Note:** The pipeline runs automatically every hour via Railway cron. Initial data population requires a manual trigger or waiting for the first hourly run.
 
 ### Step 4 — Deploy to Railway (backend, runs 24/7)
 
@@ -204,13 +212,15 @@ curl -X POST http://localhost:3001/api/pipeline/run
 3. Select the `server/` folder as the root directory
 4. **Settings → Start Command:** Set to `node index.js`
 5. **Settings → Networking → Port:** Set to `3001` (or let Railway auto-detect)
-6. Add all environment variables from `.env.example` in the Railway dashboard
-7. Railway will auto-deploy on every `git push`
+6. Add all environment variables from `RAILWAY_ENV.txt` in the Railway dashboard
+7. **Settings → Cron Jobs:** Add hourly trigger: `0 * * * *` with POST to `/api/pipeline/cron`
+8. Railway will auto-deploy on every `git push`
 
 **Important Configuration:**
 - **Start Command:** `node index.js` (runs the full AI agent pipeline)
 - **Port:** Uses `process.env.PORT` with fallback to `3001`
 - **CORS:** Configured to allow `narratiq-one.vercel.app` and `localhost:5173`
+- **Cron:** Automatic hourly pipeline execution via Railway cron
 
 Your backend URL will be something like `https://narratiq-production.up.railway.app`
 
@@ -222,9 +232,11 @@ Your backend URL will be something like `https://narratiq-production.up.railway.
    - `VITE_SUPABASE_URL` → your Supabase project URL
    - `VITE_SUPABASE_ANON_KEY` → your Supabase anon key
    - `VITE_API_URL` → your Railway backend URL (e.g., `https://narratiq-production.up.railway.app`)
-4. Deploy — Vercel auto-deploys on every `git push`
+4. **Settings → Build:** Node version set to `20.x` (pinned)
+5. Deploy — Vercel auto-deploys on every `git push`
 
 **Framework Preset:** Vite (auto-detected)
+**Build Optimizations:** Manual chunking for vendor, Supabase, and charts libraries
 
 Your frontend URL will be something like `https://narratiq-one.vercel.app`
 
@@ -240,6 +252,7 @@ Your frontend URL will be something like `https://narratiq-one.vercel.app`
 1. Check Railway Settings → **Start Command** is set to `node index.js`
 2. Check Railway Settings → **Networking → Port** matches what your code expects
 3. Check Runtime Logs for "Cannot find module" errors - ensure `Procfile` and `package.json` both reference `index.js`
+4. Verify all environment variables from `RAILWAY_ENV.txt` are added correctly
 
 ### CORS Errors in Browser Console
 
@@ -266,10 +279,16 @@ const allowedOrigins = [
 
 **Cause:** Railway is running `server.js` instead of `index.js`.
 
-**Fix:** Update `Procfile` and `package.json`:
-```
-web: node index.js
-```
+**Fix:** Update Railway Settings → **Start Command** to `node index.js` and redeploy.
+
+### Cron Job Not Working
+
+**Cause:** Node.js cron unreliable in containerized environments.
+
+**Fix:** Use Railway's built-in cron:
+1. Railway Settings → **Cron Jobs**
+2. Add: `0 * * * *` with POST to `/api/pipeline/cron`
+3. This triggers the pipeline automatically every hour
 
 ### Environment Variables Not Loading
 

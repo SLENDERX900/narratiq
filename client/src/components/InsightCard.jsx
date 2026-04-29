@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import SentimentBadge from './SentimentBadge.jsx'
 import TrustMeter from './TrustMeter.jsx'
 import SessionBadge from './SessionBadge.jsx'
@@ -19,32 +18,73 @@ function MiniChart({ candles }) {
   )
 }
 
-function ConvictionBadge({ conviction, divergence, wasContrarian }) {
-  if (conviction == null) return null
-  const pct = Math.round(conviction * 100)
-  const isHigh = pct >= 70
-  const isLow  = pct < 40
-  const color = isHigh ? '#16A34A' : isLow ? '#DC2626' : '#D97706'
-  const label = wasContrarian ? 'Contrarian' : isHigh ? 'High conviction' : isLow ? 'Low conviction' : 'Moderate'
+function regimeStyles(regime) {
+  switch (regime) {
+    case 'MACRO_SHOCK':
+      return { background: '#FFF1F2', color: '#DC2626', border: '#FECACA' }
+    case 'MEAN_REVERSION':
+      return { background: '#FFFBEB', color: '#D97706', border: '#FDE68A' }
+    case 'MOMENTUM':
+      return { background: '#F0FDF4', color: '#16A34A', border: '#BBF7D0' }
+    default:
+      return { background: '#EFF6FF', color: '#2563EB', border: '#BFDBFE' }
+  }
+}
+
+function RegimeBadge({ regime }) {
+  if (!regime) return null
+  const style = regimeStyles(regime)
+  return (
+    <span style={{
+      fontSize: '10px', padding: '2px 8px', borderRadius: '99px', fontWeight: 700,
+      background: style.background, color: style.color, border: `1px solid ${style.border}`,
+    }}>
+      {regime.replaceAll('_', ' ')}
+    </span>
+  )
+}
+
+function ActionBadge({ action }) {
+  if (!action) return null
+  const upper = action.toUpperCase()
+  const style = upper.includes('SELL')
+    ? { background:'#FFF1F2', color:'#DC2626', border:'#FECACA' }
+    : upper.includes('BUY')
+    ? { background:'#F0FDF4', color:'#16A34A', border:'#BBF7D0' }
+    : { background:'#FFFBEB', color:'#D97706', border:'#FDE68A' }
 
   return (
     <span style={{
-      fontSize: '10px', padding: '2px 8px', borderRadius: '99px', fontWeight: 600,
-      background: isHigh ? '#F0FDF4' : isLow ? '#FFF1F2' : '#FFFBEB',
-      color, border: `1px solid ${color}30`,
+      fontSize: '11px', padding: '4px 10px', borderRadius: '99px', fontWeight: 800,
+      background: style.background, color: style.color, border: `1px solid ${style.border}`,
+      letterSpacing: '0.02em',
     }}>
-      {label} {pct}%
+      {action}
     </span>
+  )
+}
+
+function DivergenceAlert({ divergence }) {
+  if (!divergence) return null
+  const value = Math.abs(Number(divergence.value || 0))
+  return (
+    <div style={{
+      padding: '6px 11px', fontSize: '11px', background: '#FFF7ED', color: '#C2410C',
+      borderTop: '1px solid #FED7AA',
+    }}>
+      <strong>Divergence Magnitude: {divergence.status}</strong> (${value.toFixed(2)} Gap)
+    </div>
   )
 }
 
 export default function InsightCard({ ticker, data, forecast, trustScores, onRemove, onExpand }) {
   const isLoading = !data
-  const fd = forecast?.forecast
-  const hasML = fd && !fd.insufficient_data
+  const evr = forecast?.evr_engine
+  const hasEngine = Boolean(evr) && !forecast?.insufficient_data
   const session = forecast?.session
-  const activeRules = fd?.active_rules || []
+  const activeRules = forecast?.session?.active_rules || []
   const hasSocial = data?.social && !data.social.is_neutral_fallback
+  const regimeStyle = regimeStyles(evr?.active_regime)
 
   const sourceLabel = {
     'marketaux':'Marketaux', 'apewisdom':'Reddit (ApeWisdom)',
@@ -61,7 +101,6 @@ export default function InsightCard({ ticker, data, forecast, trustScores, onRem
       onMouseEnter={e => { e.currentTarget.style.boxShadow='var(--shadow-md)'; e.currentTarget.style.transform='translateY(-1px)' }}
       onMouseLeave={e => { e.currentTarget.style.boxShadow='var(--shadow-sm)'; e.currentTarget.style.transform='none' }}
     >
-      {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div style={{ flex: 1 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
@@ -77,7 +116,7 @@ export default function InsightCard({ ticker, data, forecast, trustScores, onRem
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px', flexWrap: 'wrap' }}>
             {data && <SentimentBadge category={data.sentiment_cat} score={data.sentiment_score} />}
             <SessionBadge session={session} rules={[]} compact={true} />
-            {hasML && <ConvictionBadge conviction={fd.conviction} divergence={fd.divergence} wasContrarian={fd.wasContrarian} />}
+            {hasEngine && <ActionBadge action={evr.simple_action} />}
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
@@ -103,47 +142,43 @@ export default function InsightCard({ ticker, data, forecast, trustScores, onRem
         </div>
       ) : (
         <>
-          {/* ML Forecast strip */}
-          {hasML ? (
-            <div style={{ borderRadius: '8px', overflow: 'hidden',
-              border: `1px solid ${fd.predicted_change >= 0 ? '#bbf7d0' : '#fecaca'}` }}>
-              <div style={{ padding: '7px 11px',
-                background: fd.predicted_change >= 0 ? '#F0FDF4' : '#FFF1F2',
-                display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          {hasEngine ? (
+            <div style={{ borderRadius: '10px', overflow: 'hidden', border: `1px solid ${regimeStyle.border}` }}>
+              <div style={{
+                padding: '9px 11px', background: regimeStyle.background,
+                display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'flex-start',
+              }}>
                 <div>
-                  <span style={{ fontSize: '9px', color: 'var(--text-muted)', display: 'block', marginBottom: '1px' }}>
-                    ML forecast (next hour)
+                  <span style={{ fontSize: '9px', color: 'var(--text-muted)', display: 'block', marginBottom: '2px' }}>
+                    Plain-English action
                   </span>
-                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: '14px', fontWeight: 700,
-                    color: fd.predicted_change >= 0 ? '#16A34A' : '#DC2626' }}>
-                    {fd.predicted_change >= 0 ? '+' : ''}{fd.predicted_change?.toFixed(2)}%
-                    {fd.forecast_price && <span style={{ fontSize: '11px', fontWeight: 500 }}> → ${fd.forecast_price}</span>}
+                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: '13px', fontWeight: 700, color: regimeStyle.color }}>
+                    {evr.simple_action}
                   </span>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <span style={{ fontSize: '9px', color: 'var(--text-muted)', display: 'block' }}>R²</span>
-                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', fontWeight: 600,
-                    color: fd.r2 >= 0.7 ? '#16A34A' : fd.r2 >= 0.4 ? '#D97706' : 'var(--text-muted)' }}>
-                    {fd.r2?.toFixed(3)}
+                  <span style={{ fontSize: '9px', color: 'var(--text-muted)', display: 'block', marginBottom: '2px' }}>
+                    Active regime
+                  </span>
+                  <span style={{ fontSize: '11px', fontWeight: 700, color: regimeStyle.color }}>
+                    {evr.active_regime?.replaceAll('_', ' ')}
                   </span>
                 </div>
               </div>
-              {/* Price-sentiment divergence */}
-              {fd.price_divergence != null && Math.abs(fd.price_divergence) > 0.5 && (
-                <div style={{ padding: '4px 11px', fontSize: '10px',
-                  background: 'var(--gray-50)', color: '#D97706',
-                  borderTop: `1px solid ${fd.predicted_change >= 0 ? '#bbf7d0' : '#fecaca'}` }}>
-                  {fd.price_divergence > 0
-                    ? `↑ Price $${Math.abs(fd.price_divergence).toFixed(2)} ahead of sentiment`
-                    : `↓ Sentiment $${Math.abs(fd.price_divergence).toFixed(2)} ahead of price`}
-                </div>
-              )}
-              {/* Active warning rules on card */}
+              <div style={{ padding:'8px 11px', background:'var(--surface)', borderTop:'1px solid var(--border)' }}>
+                <p style={{ fontSize:'11px', lineHeight:1.6, color:'var(--text-secondary)', margin:0 }}>
+                  {evr.plain_english_reasoning}
+                </p>
+              </div>
+              <div style={{ padding:'6px 11px', fontSize:'10px', color:'var(--text-muted)', background:'var(--gray-50)', borderTop:'1px solid var(--border)' }}>
+                Institutional term: <strong style={{ color: regimeStyle.color }}>{evr.institutional_term}</strong>
+              </div>
+              <DivergenceAlert divergence={evr.divergence_magnitude} />
               {activeRules.filter(r => r.severity === 'warning' || r.severity === 'danger').slice(0,1).map((r,i) => (
                 <div key={i} style={{ padding: '4px 11px', fontSize: '10px',
                   background: r.severity === 'danger' ? '#FFF1F2' : '#FFFBEB',
                   color: r.severity === 'danger' ? '#DC2626' : '#D97706',
-                  borderTop: `1px solid ${fd.predicted_change >= 0 ? '#bbf7d0' : '#fecaca'}` }}>
+                  borderTop: '1px solid var(--border)' }}>
                   ⚠ {r.label}
                 </div>
               ))}
@@ -151,13 +186,12 @@ export default function InsightCard({ ticker, data, forecast, trustScores, onRem
           ) : (
             <div style={{ padding: '7px 11px', borderRadius: '8px', background: 'var(--gray-50)',
               border: '1px solid var(--border)', fontSize: '11px', color: 'var(--text-muted)' }}>
-              {fd?.n_observations != null
-                ? `ML training: ${fd.n_observations}/4 observations collected`
-                : 'Run pipeline to generate ML forecast'}
+              {forecast?.insufficient_data
+                ? 'EVR engine is collecting enough observations to activate.'
+                : 'Run pipeline to generate EVR engine output'}
             </div>
           )}
 
-          {/* Narrative */}
           {data.narrative && data.narrative !== 'Insufficient data to generate narrative.' && (
             <p style={{ fontSize: '12px', lineHeight: 1.65, color: 'var(--text-secondary)',
               fontFamily: 'var(--font-serif)', fontStyle: 'italic',
@@ -166,7 +200,6 @@ export default function InsightCard({ ticker, data, forecast, trustScores, onRem
             </p>
           )}
 
-          {/* Key themes */}
           {data.key_themes?.length > 0 && (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
               {data.key_themes.map((t,i) => (
@@ -176,7 +209,23 @@ export default function InsightCard({ ticker, data, forecast, trustScores, onRem
             </div>
           )}
 
-          {/* Sentiment source label */}
+          {hasEngine && (
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:'8px' }}>
+              <div style={{ padding:'8px 10px', background:'var(--gray-50)', borderRadius:'8px', border:'1px solid var(--border)' }}>
+                <p style={{ fontSize:'9px', color:'var(--text-muted)', textTransform:'uppercase', marginBottom:'3px' }}>Risk band</p>
+                <p style={{ fontSize:'12px', fontFamily:'var(--font-mono)', fontWeight:700 }}>
+                  ${evr.volatility_target?.risk_band_lower?.toFixed?.(2) ?? '—'} - ${evr.volatility_target?.risk_band_upper?.toFixed?.(2) ?? '—'}
+                </p>
+              </div>
+              <div style={{ padding:'8px 10px', background:'var(--gray-50)', borderRadius:'8px', border:'1px solid var(--border)' }}>
+                <p style={{ fontSize:'9px', color:'var(--text-muted)', textTransform:'uppercase', marginBottom:'3px' }}>Divergence</p>
+                <p style={{ fontSize:'12px', fontFamily:'var(--font-mono)', fontWeight:700, color:'#C2410C' }}>
+                  {evr.divergence_magnitude?.status} (${Math.abs(Number(evr.divergence_magnitude?.value || 0)).toFixed(2)})
+                </p>
+              </div>
+            </div>
+          )}
+
           {hasSocial && sourceLabel && (
             <div style={{ display: 'flex', justifyContent: 'space-between',
               fontSize: '10px', color: 'var(--text-muted)' }}>
@@ -185,12 +234,10 @@ export default function InsightCard({ ticker, data, forecast, trustScores, onRem
             </div>
           )}
 
-          {/* Trust meter */}
           <div style={{ borderTop: '1px solid var(--border)', paddingTop: '10px' }}>
             <TrustMeter trustScores={trustScores} compact={true} />
           </div>
 
-          {/* Footer */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
               {data.generated_at

@@ -49,9 +49,9 @@ export default function Dashboard({ user }) {
           <DolphinLogo size={28} />
           <div>
             <span style={{ fontSize:'16px', fontWeight:700, letterSpacing:'-0.02em' }}>NarratiQ</span>
-            <span style={{ fontSize:'10px', color:'var(--text-muted)', marginLeft:'8px',
+            <span style={{ fontSize:'10px', color:'var(--blue-700)', marginLeft:'8px',
               background:'var(--blue-50)', padding:'1px 6px', borderRadius:'99px',
-              border:'1px solid var(--blue-100)', color:'var(--blue-700)', fontWeight:500 }}>
+              border:'1px solid var(--blue-100)', fontWeight:500 }}>
               AMIE
             </span>
           </div>

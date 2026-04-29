@@ -1,5 +1,5 @@
 import { supabase } from '../config/supabase.js'
-import { runMLForecast } from '../lib/mlEngine.js'
+import { runMLForecast, deriveTargetObservation } from '../lib/mlEngine.js'
 import { updateTrustScore, getTrustScores, getOverallTrust } from '../lib/trustEngine.js'
 import { getLatestMacro } from './macroAgent.js'
 
@@ -8,10 +8,11 @@ const HISTORY_WINDOW = 168
 export async function runForecastAgent(ticker, runId, currentInsight) {
   console.log(`[ForecastAgent] ${ticker} — ML training`)
 
-  const [{ data: rows }, macro] = await Promise.all([
-    supabase.from('stock_insights').select('price, change_pct, sentiment_score, social, forecast_price, generated_at')
+  const [{ data: rows }, macro, trustScores] = await Promise.all([
+    supabase.from('stock_insights').select('price, change_pct, sentiment_score, social, candles, forecast_price, generated_at')
       .eq('ticker', ticker).order('generated_at', { ascending: true }).limit(HISTORY_WINDOW),
     getLatestMacro(),
+    getTrustScores(ticker),
   ])
 
   // Get previous forecast for accuracy
@@ -21,18 +22,29 @@ export async function runForecastAgent(ticker, runId, currentInsight) {
   const prev = prevForecasts?.[0]
 
   // Run ML
-  const result = runMLForecast(rows || [], currentInsight, macro)
+  const result = runMLForecast(rows || [], currentInsight, macro, trustScores)
 
-  // Compute accuracy & update trust scores
+  // Compute classification accuracy & update trust scores
   let forecast_error = null, accuracy_pct = null
-  if (prev?.predicted_change != null && currentInsight.change_pct != null) {
-    const actual = parseFloat(currentInsight.change_pct)
+  const realizedTarget = rows?.length >= 3
+    ? deriveTargetObservation(
+        rows[rows.length - 3],
+        rows[rows.length - 2],
+        rows[rows.length - 1],
+        macro,
+        trustScores,
+        rows.slice(Math.max(0, rows.length - 5), rows.length - 2),
+      )
+    : null
+  const actualDivergenceLabel = realizedTarget?.divergenceLabel ?? null
+
+  if (prev?.predicted_change != null && actualDivergenceLabel != null) {
     const predicted = parseFloat(prev.predicted_change)
+    const actual = Number(actualDivergenceLabel)
     forecast_error = parseFloat((actual - predicted).toFixed(4))
-    const absActual = Math.abs(actual)
-    accuracy_pct = absActual > 0.01
-      ? parseFloat(Math.min(100, Math.max(0, (1-Math.abs(forecast_error)/absActual)*100)).toFixed(1))
-      : parseFloat(Math.min(100, 100-Math.abs(forecast_error)*20).toFixed(1))
+    accuracy_pct = predicted >= 0.5
+      ? (actual === 1 ? 100 : 0)
+      : (actual === 0 ? 100 : 0)
 
     // Update trust scores per source
     const socialSource = currentInsight.social?.social_source || 'unknown'
@@ -45,26 +57,24 @@ export async function runForecastAgent(ticker, runId, currentInsight) {
     }
   }
 
-  // Get overall trust score
-  const trustScores = await getTrustScores(ticker)
   const overallTrust = await getOverallTrust(ticker)
 
   // Store forecast
   await supabase.from('stock_forecasts').insert({
     ticker, run_id: runId,
-    beta_0: result.predicted_change ?? null,
-    beta_1: result.r2 ?? null,
-    beta_2: result.rmse ?? null,
-    r_squared: result.r2 ?? null,
+    beta_0: result.divergence_probability ?? null,
+    beta_1: result.atr_move_probability ?? null,
+    beta_2: result.atr_move_threshold_pct ?? null,
+    r_squared: null,
     std_error: result.rmse ?? null,
     n_observations: result.n_observations,
     current_sentiment: parseFloat(currentInsight.sentiment_score) || null,
-    predicted_change: result.predicted_change ?? null,
-    lower_bound: result.lower_bound ?? null,
-    upper_bound: result.upper_bound ?? null,
-    forecast_price: result.forecast_price ?? null,
+    predicted_change: result.divergence_probability ?? null,
+    lower_bound: result.divergence_ci_lower ?? null,
+    upper_bound: result.divergence_ci_upper ?? null,
+    forecast_price: null,
     previous_predicted_change: prev?.predicted_change ?? null,
-    actual_change: parseFloat(currentInsight.change_pct) || null,
+    actual_change: actualDivergenceLabel,
     forecast_error, accuracy_pct,
     generated_at: new Date().toISOString(),
   })
@@ -74,7 +84,7 @@ export async function runForecastAgent(ticker, runId, currentInsight) {
     .select('id').eq('ticker', ticker).order('generated_at', { ascending: false }).limit(1).single()
   if (latest) {
     await supabase.from('stock_insights').update({
-      forecast_price: result.forecast_price,
+      forecast_price: null,
       forecast_error, trust_score: overallTrust,
       implied_price: result.implied_price,
       price_divergence: result.price_divergence,
@@ -82,7 +92,8 @@ export async function runForecastAgent(ticker, runId, currentInsight) {
     }).eq('id', latest.id)
   }
 
-  const r2Str = result.r2 != null ? result.r2.toFixed(3) : 'n/a'
-  console.log(`[ForecastAgent] ${ticker} — R²=${r2Str} trust=${overallTrust ?? 'n/a'} pred=${result.predicted_change ?? 'n/a'}%`)
+  const divergenceStr = result.divergence_probability != null ? `${(result.divergence_probability * 100).toFixed(1)}%` : 'n/a'
+  const atrMoveStr = result.atr_move_probability != null ? `${(result.atr_move_probability * 100).toFixed(1)}%` : 'n/a'
+  console.log(`[ForecastAgent] ${ticker} — div=${divergenceStr} atr=${atrMoveStr} trust=${overallTrust ?? 'n/a'}`)
   return { ...result, forecast_error, accuracy_pct, trustScores, overallTrust }
 }

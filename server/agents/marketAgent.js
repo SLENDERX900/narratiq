@@ -3,6 +3,8 @@ import { createRobustClient } from '../lib/healthMonitor.js'
 import { normalizePrice } from '../lib/dataNormalizer.js'
 import { supabase } from '../config/supabase.js'
 
+const OHLCV_WINDOW_HOURS = 24
+
 function isMarketOpen() {
   const h = new Date().getUTCHours()
   const { open, close } = marketHours.NYSE
@@ -11,7 +13,7 @@ function isMarketOpen() {
 
 async function fetchFinnhub(client, ticker, key) {
   const now = Math.floor(Date.now() / 1000)
-  const from = now - 3600 * 6
+  const from = now - 3600 * OHLCV_WINDOW_HOURS
   const [quote, candles] = await Promise.all([
     client.get(`https://finnhub.io/api/v1/quote?symbol=${ticker}&token=${key}`),
     client.get(`https://finnhub.io/api/v1/stock/candle?symbol=${ticker}&resolution=60&from=${from}&to=${now}&token=${key}`),
@@ -23,7 +25,7 @@ async function fetchFinnhub(client, ticker, key) {
 
 async function fetchTwelveData(client, ticker, key) {
   const res = await client.get(
-    `https://api.twelvedata.com/time_series?symbol=${ticker}&interval=1h&outputsize=6&apikey=${key}`
+    `https://api.twelvedata.com/time_series?symbol=${ticker}&interval=1h&outputsize=${OHLCV_WINDOW_HOURS}&apikey=${key}`
   )
   const latest = res.data.values?.[0] || {}
   return normalizePrice('twelvedata', { ...latest, values: res.data.values, percent_change: latest.close && res.data.values?.[1]?.close

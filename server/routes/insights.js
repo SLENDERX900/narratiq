@@ -3,6 +3,16 @@ import { supabase } from '../config/supabase.js'
 
 const router = Router()
 
+function mapInsightPayload(row) {
+  if (!row) return row
+
+  const { price_divergence, ...rest } = row
+  return {
+    ...rest,
+    divergence_magnitude: price_divergence ?? null,
+  }
+}
+
 // IMPORTANT: /history must be defined BEFORE /:ticker
 // Express matches routes in order — if /:ticker is first, "history" gets
 // captured as a ticker name and this route never fires.
@@ -18,11 +28,11 @@ router.get('/history', async (req, res) => {
     tickers.map(async ticker => {
       const { data } = await supabase
         .from('stock_insights')
-        .select('ticker, price, change_pct, sentiment_score, sentiment_cat, confidence_score, social, forecast_price, generated_at')
+        .select('ticker, price, change_pct, sentiment_score, sentiment_cat, confidence_score, social, forecast_price, price_divergence, generated_at')
         .eq('ticker', ticker)
         .order('generated_at', { ascending: true })  // oldest first for charts
         .limit(limit)
-      results[ticker] = data || []
+      results[ticker] = (data || []).map(mapInsightPayload)
     })
   )
   res.json(results)
@@ -45,7 +55,7 @@ router.get('/', async (req, res) => {
       return data || null
     })
   )
-  res.json(results.filter(Boolean))
+  res.json(results.filter(Boolean).map(mapInsightPayload))
 })
 
 // GET /api/insights/:ticker — latest for single ticker
@@ -60,7 +70,7 @@ router.get('/:ticker', async (req, res) => {
     .single()
 
   if (error || !data) return res.status(404).json({ error: 'No data yet for this ticker' })
-  res.json(data)
+  res.json(mapInsightPayload(data))
 })
 
 export default router
