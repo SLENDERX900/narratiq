@@ -1,41 +1,10 @@
 import 'dotenv/config'
 import express from 'express'
 import cron from 'node-cron'
-
-// Graceful imports - if any module fails, log error but don't crash
-let insightsRouter, watchlistRouter, forecastRouter, runPipeline, catchUpIfMissed
-
-async function loadModules() {
-  try {
-    insightsRouter = (await import('./routes/insights.js')).default
-    console.log('[Startup] Insights router loaded')
-  } catch (err) {
-    console.error('[Startup] Failed to load insights router:', err.message)
-  }
-
-  try {
-    watchlistRouter = (await import('./routes/watchlist.js')).default
-    console.log('[Startup] Watchlist router loaded')
-  } catch (err) {
-    console.error('[Startup] Failed to load watchlist router:', err.message)
-  }
-
-  try {
-    forecastRouter = (await import('./routes/forecast.js')).default
-    console.log('[Startup] Forecast router loaded')
-  } catch (err) {
-    console.error('[Startup] Failed to load forecast router:', err.message)
-  }
-
-  try {
-    const pipelineModule = await import('./lib/pipelineRunner.js')
-    runPipeline = pipelineModule.runPipeline
-    catchUpIfMissed = pipelineModule.catchUpIfMissed
-    console.log('[Startup] Pipeline runner loaded')
-  } catch (err) {
-    console.error('[Startup] Failed to load pipeline runner:', err.message)
-  }
-}
+import { runPipeline, catchUpIfMissed } from './lib/pipelineRunner.js'
+import insightsRouter  from './routes/insights.js'
+import watchlistRouter from './routes/watchlist.js'
+import forecastRouter  from './routes/forecast.js'
 
 const app = express()
 const PORT = process.env.PORT || 3001
@@ -64,62 +33,30 @@ app.get('/test-cors', (req, res) => {
   res.json({ message: 'CORS is working', origin: req.headers.origin })
 })
 
-// Real routes with AI agents - only load if modules loaded successfully
-if (insightsRouter) {
-  app.use('/api/insights', insightsRouter)
-} else {
-  app.get('/api/insights', (req, res) => {
-    res.json({ error: 'Insights service unavailable' })
-  })
-}
-
-if (watchlistRouter) {
-  app.use('/api/watchlist', watchlistRouter)
-} else {
-  app.get('/api/watchlist', (req, res) => {
-    res.json({ error: 'Watchlist service unavailable' })
-  })
-}
-
-if (forecastRouter) {
-  app.use('/api/forecast', forecastRouter)
-} else {
-  app.get('/api/forecast/:ticker', (req, res) => {
-    res.json({ error: 'Forecast service unavailable' })
-  })
-}
+// Real routes with AI agents
+app.use('/api/insights',  insightsRouter)
+app.use('/api/watchlist', watchlistRouter)
+app.use('/api/forecast',  forecastRouter)
 
 app.get('/health', (req, res) => res.json({ status: 'ok', time: new Date().toISOString(), cors: 'enabled' }))
 
 app.post('/api/pipeline/run', async (req, res) => {
   res.json({ message: 'Pipeline triggered via POST' })
-  if (runPipeline) {
-    await runPipeline()
-  } else {
-    console.error('[Pipeline] Pipeline runner not available')
-  }
+  await runPipeline()
 })
 
 // GET version for easy browser trigger
 app.get('/api/pipeline/trigger', async (req, res) => {
   res.json({ message: 'Pipeline triggered via GET - check Runtime Logs' })
-  if (runPipeline) {
-    await runPipeline()
-  } else {
-    console.error('[Pipeline] Pipeline runner not available')
-  }
+  await runPipeline()
 })
 
 // POST version for Railway cron (no auth required)
 app.post('/api/pipeline/cron', async (req, res) => {
   console.log(`[Cron] Railway cron triggered at ${new Date().toISOString()}`)
   try {
-    if (runPipeline) {
-      await runPipeline()
-      res.json({ message: 'Pipeline completed successfully' })
-    } else {
-      res.status(503).json({ error: 'Pipeline service unavailable' })
-    }
+    await runPipeline()
+    res.json({ message: 'Pipeline completed successfully' })
   } catch (err) {
     console.error('[Cron] Pipeline failed:', err)
     res.status(500).json({ error: 'Pipeline failed', message: err.message })
@@ -128,28 +65,16 @@ app.post('/api/pipeline/cron', async (req, res) => {
 
 app.listen(PORT, '0.0.0.0', async () => {
   console.log(`\nNarratiQ server running on port ${PORT}`)
-  
-  // Load modules after server starts
-  await loadModules()
-  
   cron.schedule('0 * * * *', () => {
     console.log(`[Cron] Hourly trigger fired at ${new Date().toISOString()}`)
-    if (runPipeline) {
-      runPipeline().catch(err => console.error('[Cron] Pipeline failed:', err))
-    } else {
-      console.error('[Cron] Pipeline runner not available')
-    }
+    runPipeline().catch(err => console.error('[Cron] Pipeline failed:', err))
   })
-  
-  try {
-    if (catchUpIfMissed) {
-      await catchUpIfMissed()
-    } else {
-      console.log('[Startup] Pipeline runner not available, skipping catch-up')
-    }
-  } catch (err) {
-    console.error('[Startup] catchUpIfMissed failed:', err.message)
-  }
+  // Temporarily disable catchUpIfMissed to prevent startup crashes
+  // try {
+  //   await catchUpIfMissed()
+  // } catch (err) {
+  //   console.error('[Startup] catchUpIfMissed failed:', err.message)
+  // }
 })
 
 // Error handling
