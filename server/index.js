@@ -1,60 +1,59 @@
 import 'dotenv/config'
 import express from 'express'
-import cron from 'node-cron'
-import { runPipeline, catchUpIfMissed } from './lib/pipelineRunner.js'
+import cors from 'cors'
+
+const app = express()
+const PORT = process.env.PORT || 8080
+
+// 1. ABSOLUTE FIRST: Handle CORS before anything else blocks the thread
+app.use(cors({
+  origin: ['https://narratiq-one.vercel.app', 'https://narratiq-l7g3k59gw-stuarttgregory04-4577s-projects.vercel.app', 'http://localhost:3000', 'http://localhost:5173'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true
+}))
+
+// 2. EXPLICIT PREFLIGHT HANDLING (Railway Safety)
+app.options('*', cors())
+
+// 3. BODY PARSERS
+app.use(express.json())
+
+// 4. INSTANT HEALTH CHECK (To prevent Railway 502s)
+app.get('/test-cors', (req, res) => {
+  res.status(200).json({ status: "ok", message: "CORS and Server are alive." });
+})
+
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: "ok", message: "Server is healthy", port: PORT });
+})
+
+// 5. LAZY LOAD HEAVY LOGIC - Import routes AFTER middleware
 import insightsRouter  from './routes/insights.js'
 import watchlistRouter from './routes/watchlist.js'
 import forecastRouter  from './routes/forecast.js'
 
-const app = express()
-const PORT = process.env.PORT || 3001
-
-// CORS - MUST be before express.json()
-app.use((req, res, next) => {
-  const allowedOrigins = ['https://narratiq-one.vercel.app', 'https://narratiq-l7g3k59gw-stuarttgregory04-4577s-projects.vercel.app', 'http://localhost:5173']
-  const origin = req.headers.origin
-  if (allowedOrigins.includes(origin)) {
-    res.header('Access-Control-Allow-Origin', origin)
-  }
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization')
-  res.header('Access-Control-Allow-Credentials', 'true')
-  
-  if (req.method === 'OPTIONS') {
-    return res.sendStatus(200)
-  }
-  next()
-})
-
-app.use(express.json())
-
-// Test endpoint
-app.get('/test-cors', (req, res) => {
-  res.json({ message: 'CORS is working', origin: req.headers.origin })
-})
-
-// Real routes with AI agents
-app.use('/api/insights',  insightsRouter)
+app.use('/api/insights', insightsRouter)
 app.use('/api/watchlist', watchlistRouter)
-app.use('/api/forecast',  forecastRouter)
+app.use('/api/forecast', forecastRouter)
 
-app.get('/health', (req, res) => res.json({ status: 'ok', time: new Date().toISOString(), cors: 'enabled' }))
-
+// Pipeline endpoints
 app.post('/api/pipeline/run', async (req, res) => {
   res.json({ message: 'Pipeline triggered via POST' })
+  const { runPipeline } = await import('./lib/pipelineRunner.js')
   await runPipeline()
 })
 
-// GET version for easy browser trigger
 app.get('/api/pipeline/trigger', async (req, res) => {
   res.json({ message: 'Pipeline triggered via GET - check Runtime Logs' })
+  const { runPipeline } = await import('./lib/pipelineRunner.js')
   await runPipeline()
 })
 
-// POST version for Railway cron (no auth required)
 app.post('/api/pipeline/cron', async (req, res) => {
   console.log(`[Cron] Railway cron triggered at ${new Date().toISOString()}`)
   try {
+    const { runPipeline } = await import('./lib/pipelineRunner.js')
     await runPipeline()
     res.json({ message: 'Pipeline completed successfully' })
   } catch (err) {
@@ -63,19 +62,35 @@ app.post('/api/pipeline/cron', async (req, res) => {
   }
 })
 
-app.listen(PORT, '0.0.0.0', async () => {
-  console.log(`\nNarratiQ server running on port ${PORT}`)
-  cron.schedule('0 * * * *', () => {
-    console.log(`[Cron] Hourly trigger fired at ${new Date().toISOString()}`)
-    runPipeline().catch(err => console.error('[Cron] Pipeline failed:', err))
-  })
-  // Temporarily disable catchUpIfMissed to prevent startup crashes
-  // try {
-  //   await catchUpIfMissed()
-  // } catch (err) {
-  //   console.error('[Startup] catchUpIfMissed failed:', err.message)
-  // }
-})
+// 6. RAILWAY BINDING
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 Server running on port ${PORT}`);
+  // Initialize heavy AI agents asynchronously AFTER the server is listening
+  initializeHeavyLogic().catch(console.error);
+});
+
+// Lazy initialization of heavy logic
+async function initializeHeavyLogic() {
+  console.log('🔄 Initializing heavy AI logic...');
+  try {
+    // Import and initialize heavy modules here
+    const cron = (await import('node-cron')).default;
+    const { runPipeline, catchUpIfMissed } = await import('./lib/pipelineRunner.js');
+    
+    // Setup cron job
+    cron.schedule('0 * * * *', () => {
+      console.log(`[Cron] Hourly trigger fired at ${new Date().toISOString()}`);
+      runPipeline().catch(err => console.error('[Cron] Pipeline failed:', err));
+    });
+    
+    // Optional: catch up missed runs (commented out to prevent startup crashes)
+    // await catchUpIfMissed();
+    
+    console.log('✅ Heavy AI logic initialized successfully');
+  } catch (err) {
+    console.error('❌ Failed to initialize heavy logic:', err.message);
+  }
+}
 
 // Error handling
 process.on('unhandledRejection', (err) => {
